@@ -78,17 +78,36 @@ mkdir -p "$HOME/.Xilinx"
 ./xsetup -b ConfigGen
 ```
 
-Select the **Vitis** product and save to `/home/vivado/.Xilinx/install_config.txt`. It includes Vivado and Vitis HLS (one 2026.1 install report describes Vitis as a superset of the other tools, so confirm that Vivado and Vitis HLS appear in the generated file). Then edit it:
+Choose option **1, Vitis** in the product menu. The configuration is saved to `/home/vivado/.Xilinx/install_config.txt`.
+
+Vitis includes Vivado and Vitis HLS. They are not listed as separate modules in the generated file, so there is nothing to tick for them; confirm them after the install in 4.8 and 4.9. In the generated file every device family is set to `:0` (off) and only `DocNav:1` is on. The `Modules=` line is very long, so edit the file with `sed` instead of an editor:
 
 ```bash
-nano "$HOME/.Xilinx/install_config.txt"
+sed -i \
+  -e 's|^Destination=.*|Destination=/tools/Xilinx|' \
+  -e 's|Zynq-7000 All Programmable SoC:0|Zynq-7000 All Programmable SoC:1|' \
+  -e 's|DocNav:1|DocNav:0|' \
+  -e 's|^CreateProgramGroupShortcuts=.*|CreateProgramGroupShortcuts=0|' \
+  -e 's|^CreateDesktopShortcuts=.*|CreateDesktopShortcuts=0|' \
+  -e 's|^CreateFileAssociation=.*|CreateFileAssociation=0|' \
+  "$HOME/.Xilinx/install_config.txt"
 ```
 
-* Set `Destination=/tools/Xilinx`
-* Select only the **Zynq-7000** device family
-* Keep Vivado and Vitis HLS selected
-* Leave out other device families, and any embedded or platform content you do not need
-* Disable desktop shortcuts if not needed
+What each line does:
+
+* Sets `Destination=/tools/Xilinx`
+* Enables only the **Zynq-7000 All Programmable SoC** device family
+* Turns off Documentation Navigator (optional; leave `DocNav:1` if you want it)
+* Disables Start menu, desktop, and file-association shortcuts, which are useless inside a container
+
+Leave `InstallOptions=Acquire or Manage a License Key:0` as it is, since that option opens an interactive license step. Verify the edit:
+
+```bash
+grep -E '^(Destination|Create)' "$HOME/.Xilinx/install_config.txt"
+grep -o '[^,=]*:1' "$HOME/.Xilinx/install_config.txt"
+```
+
+The first command should show the destination and three `=0` shortcut lines. The second should print only `Zynq-7000 All Programmable SoC:1`.
 
 Prefer editing the AMD-generated configuration over writing the module list by hand.
 
