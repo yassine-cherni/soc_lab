@@ -2,16 +2,24 @@
 set -euo pipefail
 
 # Optional overrides (export before running):
-#   XILINX_TOOLS_MOUNT  volume name or absolute host path (default vivado-tools)
-#   VIVADO_HOME_MOUNT   volume name or absolute host path (default vivado-home)
+#   XILINX_TOOLS_MOUNT  absolute host path for the Vivado install
+#                       (default ~/xilinx/tools)
+#   VIVADO_HOME_MOUNT   absolute host path for the container user's home
+#                       (default ~/xilinx/home)
 #   INSTALLER_DIR       host dir with installer and license (default ~/installer)
+#
+# Both mounts default to plain host folders so the install survives container
+# deletion, image rebuilds, and Docker cleanups (docker volume prune, etc.).
+# A value that does not start with "/" is treated as a named Docker volume;
+# that works, but those volumes live inside Docker's data directory and can be
+# deleted by Docker commands.
 
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 HOST_USER="$(id -un)"
 
 IMAGE="vivado-base:24.04"
-XILINX_TOOLS_MOUNT="${XILINX_TOOLS_MOUNT:-vivado-tools}"
-VIVADO_HOME_MOUNT="${VIVADO_HOME_MOUNT:-vivado-home}"
+XILINX_TOOLS_MOUNT="${XILINX_TOOLS_MOUNT:-$HOME/xilinx/tools}"
+VIVADO_HOME_MOUNT="${VIVADO_HOME_MOUNT:-$HOME/xilinx/home}"
 INSTALLER_DIR="${INSTALLER_DIR:-$HOME/installer}"
 
 : "${DISPLAY:?Run this script from a graphical desktop session with DISPLAY set}"

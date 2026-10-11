@@ -1,6 +1,6 @@
 # 1. Host setup
 
-Install Docker Engine, verify storage, and keep the installer and license outside the Git repository.
+Install Docker Engine, verify storage, create the host folders that hold the Vivado install, and keep the installer and license outside the Git repository.
 
 ## 1.1 Install Docker Engine
 
@@ -51,7 +51,7 @@ echo "Docker Root Dir: $DOCKER_ROOT"
 df -h / "$HOME" "$DOCKER_ROOT"
 ```
 
-Do not assume Docker uses `/var/lib/docker`. If space is insufficient, use a larger filesystem for Docker or Vivado. See [Docker environment](03-docker-environment.md#optional-store-vivado-on-a-larger-disk).
+Do not assume Docker uses `/var/lib/docker`. Docker itself only stores the image (a few GB). Vivado is stored in host folders created in [1.5](#15-create-the-vivado-folders), so the filesystem that matters is the one holding `~/xilinx`. If it is too small, put those folders elsewhere: see [Changing the install location](03-docker-environment.md#changing-the-install-location).
 
 ## 1.3 Prepare the installer directory
 
@@ -90,5 +90,20 @@ cd "$HOME/Desktop/soc_lab"
 mkdir -p docker docs docs/images rtl hls constraints sim scripts
 touch rtl/.gitkeep hls/.gitkeep constraints/.gitkeep sim/.gitkeep scripts/.gitkeep
 ```
+
+## 1.5 Create the Vivado folders
+
+The Vivado install and the container user's home live in two plain host folders, not in Docker volumes. This keeps the install safe when you delete or replace the container, rebuild the image, or run Docker cleanup commands.
+
+```bash
+mkdir -p "$HOME/xilinx/tools" "$HOME/xilinx/home"
+```
+
+| Host folder | Mounted at | Holds |
+|---|---|---|
+| `~/xilinx/tools` | `/tools/Xilinx` | the Vivado, Vitis, and Vitis HLS install |
+| `~/xilinx/home` | `/home/vivado` | license copy, `~/.Xilinx` settings, install configuration |
+
+Both folders must be owned by your user (UID 1000 on a default Ubuntu desktop), because the container user has the same UID. `docker/run.sh` creates them if missing and warns if the ownership is wrong. Keep these folders outside the Git repository.
 
 Next: [Licensing](02-licensing.md)

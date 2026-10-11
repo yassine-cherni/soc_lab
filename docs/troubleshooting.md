@@ -21,13 +21,19 @@ docker build --build-arg UID="$(id -u)" -t vivado-base:24.04 docker/
 **Something I installed or saved is gone after restarting**
 The container is discarded on exit. Only `/work`, `/tools/Xilinx`, `/home/vivado`, and `/installer` persist ([details](03-docker-environment.md#what-persists-and-what-does-not)). Add needed packages to the Dockerfile, and save files under `/work`.
 
+**`docker: Error response ... name "/vivado" is already in use`**
+A container named `vivado` is still running (for example from a closed terminal). Open a shell in it with `docker exec -it vivado bash`, or stop it with `docker stop vivado` and run `./docker/run.sh` again.
+
+**`vivado: command not found` when passing a command to `run.sh`**
+The environment is loaded by interactive shells only. Use `./docker/run.sh bash -ic '<command>'` ([details](03-docker-environment.md#second-terminal-and-batch-commands)).
+
 **`run.sh` says the image was not found**
-Build `vivado-base:24.04` first ([build step](03-docker-environment.md#build-and-start)).
+Build `vivado-base:24.04` first ([build step](03-docker-environment.md#build-the-image)).
 
 ## Installer
 
 **"Cannot write to /tools/Xilinx" or a permission error at install**
-If `XILINX_TOOLS_MOUNT` is a host directory, make sure it is owned by your UID: `sudo chown -R "$(id -u):$(id -g)" <dir>`.
+`/tools/Xilinx` is a host folder (by default `~/xilinx/tools`). Make sure it is owned by your UID: `sudo chown -R "$(id -u):$(id -g)" ~/xilinx`. If you set `XILINX_TOOLS_MOUNT` yourself, fix that directory instead.
 
 **`chmod: Read-only file system`**
 Run `chmod +x` on the installer on the host, not inside the container.
@@ -67,6 +73,11 @@ Verify `DISPLAY` is set, `/tmp/.X11-unix` is mounted, and the `libxcb-*` package
 **USB devices visible but Vivado cannot access JTAG**
 Confirm the cable is in U23 (not J1), SW10 selects USB-JTAG, the cable rules are installed on the host ([hardware guide](05-zc702-hardware.md#52-install-cable-rules-on-the-host)), and USB permissions allow access. Replug the board and restart the container if needed.
 
+**`/tools/Xilinx` is empty after a restart**
+The container is probably using a different host folder than the one you installed into. On the host, run `echo "$XILINX_TOOLS_MOUNT"` and `ls ~/xilinx/tools`. If the variable is set in one terminal but not another, `run.sh` falls back to `~/xilinx/tools`. Set the variable in `~/.bashrc` or change the default in `docker/run.sh`. If you installed before moving to host folders, the install is still in the old `vivado-tools` volume: see [Migrating from named volumes](03-docker-environment.md#migrating-from-named-volumes).
+
 ## Persistent storage warning
 
-Do not remove the `vivado-tools` or `vivado-home` volumes casually. They hold the installed software and user configuration, including the copied license. `docker volume rm` and `docker system prune --volumes` delete them.
+The Vivado install and your license live in `~/xilinx/tools` and `~/xilinx/home` on the host. Deleting a container, rebuilding the image, `docker volume prune`, and `docker system prune` do not touch them. Only deleting those folders does, so do not remove them casually.
+
+Back up `~/xilinx/home` (small, holds the copied license) and keep the license file in `~/installer`. If you ever used the older named volumes `vivado-tools` or `vivado-home`, `docker volume rm` and volume prunes delete them.

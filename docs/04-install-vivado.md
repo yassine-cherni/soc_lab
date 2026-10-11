@@ -2,6 +2,15 @@
 
 Run everything here **inside the container**.
 
+Before installing, confirm the persistent mounts are in place and writable:
+
+```bash
+ls -ld /tools/Xilinx /home/vivado
+touch /tools/Xilinx/.write_test && rm /tools/Xilinx/.write_test
+```
+
+Both directories should belong to `vivado`. They are backed by `~/xilinx/tools` and `~/xilinx/home` on the host. If the `touch` fails, fix the ownership on the host: `sudo chown -R "$(id -u):$(id -g)" ~/xilinx`.
+
 The installer `.bin` is the Unified **web** installer. It downloads selected tools and device support from AMD, so internet access is required, even though the filename contains "SDI". Checksum retry messages during download are normal, the installer recovers on its own. If the installer or container stops mid-install, relaunch the container and rerun the installer. It resumes from where it stopped.
 
 On a slow or unreliable connection, consider the offline route: run the web installer once with the **Download Only** option to build a single-file image (about 98 GB), keep it on a disk, and install from that. In that case skip 4.3 (authentication is only for the web installer) and run `xsetup` from the extracted image instead of `/tmp/sdi`.
@@ -17,15 +26,37 @@ cd /installer
     --noexec --target /tmp/sdi
 ```
 
+Replace `XXXX_XXXX` with the numbers in your installer's filename (`ls /installer` shows it).
+
 ## 4.2 Check required libraries
 
 The image already contains the legacy `libtinfo5` and `libncurses5` packages. If the installer still reports missing libraries, run AMD's script if present:
 
 ```bash
+# Snapshot the installed packages first (used in 4.7 to update the Dockerfile)
+mkdir -p /work/build
+dpkg-query -W -f='${binary:Package}\n' | sort > /work/build/pkgs-before.txt
+
 sudo apt-get update
 dos2unix /tmp/sdi/installLibs.sh
 sudo /tmp/sdi/installLibs.sh
+
+# Save the full list and the packages the script added. These files live in
+# /work, so they survive the container. An empty "added" list means the image
+# already had everything.
+dpkg-query -W -f='${binary:Package}\n' | sort > /work/build/pkgs-after-script.txt
+comm -13 /work/build/pkgs-before.txt /work/build/pkgs-after-script.txt > /work/build/pkgs-added.txt
+wc -l /work/build/pkgs-added.txt
 ```
+
+If `pkgs-added.txt` is not empty, turn it into the Dockerfile's package list so a fresh container never needs the script again:
+
+```bash
+{ echo "# Packages added by AMD installLibs.sh (2026.1), captured $(date +%F)"
+  cat /work/build/pkgs-added.txt; } > /work/docker/xilinx-libs.txt
+```
+
+The Dockerfile reads `docker/xilinx-libs.txt` (see [Docker environment](03-docker-environment.md)). Rebuild the image on the host when convenient; the running container is not affected.
 
 The 2026.1 `installLibs.sh` has been shipped with Windows line endings, which fails with `$'\r': command not found`. The `dos2unix` line fixes that and is harmless if the file is already clean. Prefer running this script before the install; a post-install run can hit problems if some packages are missing beforehand.
 
@@ -72,7 +103,7 @@ cd /tmp/sdi
     --config "$HOME/.Xilinx/install_config.txt"
 ```
 
-Disk use and download time depend on the selected components, and Vitis adds noticeably more than Vivado alone. Check the disk-space figure the installer prints before the download starts. The expected environment script is `/tools/Xilinx/2026.1/Vivado/settings64.sh`. Because `/tools/Xilinx` is a persistent mount, the install survives container recreation.
+Disk use and download time depend on the selected components, and Vitis adds noticeably more than Vivado alone. Check the disk-space figure the installer prints before the download starts. The expected environment script is `/tools/Xilinx/2026.1/Vivado/settings64.sh`. Because `/tools/Xilinx` is the host folder `~/xilinx/tools`, the install survives container deletion, image rebuilds, and Docker cleanups.
 
 ## 4.6 Copy the license into the persistent home
 
@@ -82,7 +113,7 @@ install -m 600 \
     "$HOME/.Xilinx/Xilinx.lic"
 ```
 
-Adjust the source path if your license has a different name. `/home/vivado` is backed by the `vivado-home` volume, so the license persists.
+Adjust the source path if your license has a different name. `/home/vivado` is backed by the host folder `~/xilinx/home`, so the license persists.
 
 ```bash
 source /etc/vivado-env.sh
@@ -122,13 +153,23 @@ exec bash
 
 If the script fails, diagnose the missing library from AMD's documentation instead of creating compatibility symlinks.
 
-**Make the libraries permanent.** Packages installed here live in the container filesystem and are lost on exit. After the script succeeds, list what it added:
+**Make the libraries permanent.** Packages installed here live in the container filesystem and are lost on exit. Record the package list before running `installLibs.sh` (in 4.2 or 4.7), then compare afterwards. The image's own `/var/log/dpkg.log` already lists everything from the Docker build, so use a before and after snapshot instead:
 
 ```bash
-grep " install " /var/log/dpkg.log | awk '{print $4}' | sort -u
+# before running installLibs.sh
+dpkg-query -W -f='${binary:Package}\n' | sort > /work/build/pkgs-before.txt
+
+# run installLibs.sh, then:
+dpkg-query -W -f='${binary:Package}\n' | sort | comm -13 /work/build/pkgs-before.txt -
 ```
 
-Add those package names to the `apt-get install` list in `docker/Dockerfile` and rebuild the image. The Vivado install and your license are untouched by a rebuild.
+Write the names printed into `docker/xilinx-libs.txt` (one per line; the Dockerfile installs them) and rebuild the image. The Vivado install and your license are untouched by a rebuild. Do this as soon as the libraries are known, so a fresh container never needs the script again.
+
+To confirm a rebuilt image has everything the script installed, run this in a fresh container; it should print nothing:
+
+```bash
+comm -13 <(dpkg-query -W -f='${binary:Package}\n' | sort) /work/build/pkgs-after-script.txt
+```
 
 ## 4.8 Verify
 
@@ -178,5 +219,26 @@ grep -E '^(FEATURE|INCREMENT)' "$XILINXD_LICENSE_FILE" | awk '{print $2}'
 ```
 
 The list should include a Vitis HLS feature as well as the Vivado Basic one. The exact feature names are AMD's, so compare against what the portal showed you.
+
+## 4.10 Prove the install is permanent
+
+Do this once everything above passes. It simulates what you wanted to be safe: a replaced container, then a replaced image.
+
+1. Exit the container, then start a new one with `./docker/run.sh`. Run `vivado -version` and `vitis-run --version` (or whichever HLS command 4.9 found). Both should work with no reinstall.
+2. On the host, delete and rebuild the image:
+
+   ```bash
+   docker image rm vivado-base:24.04
+   docker build --build-arg UID="$(id -u)" -t vivado-base:24.04 docker/
+   ./docker/run.sh
+   ```
+
+   Run `vivado -version` again. If it fails on a missing library, the packages from 4.7 are not yet in the Dockerfile.
+3. On the host, confirm the install and license are real files you can see and back up:
+
+   ```bash
+   du -sh ~/xilinx/tools ~/xilinx/home
+   ls -l ~/xilinx/home/.Xilinx/Xilinx.lic
+   ```
 
 Previous: [Docker environment](03-docker-environment.md) | Next: [ZC702 hardware access](05-zc702-hardware.md)

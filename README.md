@@ -12,6 +12,7 @@ Vitis HLS (C/C++-to-RTL blocks) is part of the toolchain alongside the handwritt
 | Container OS | Ubuntu 24.04 LTS (`ubuntu:24.04`) |
 | FPGA tools | AMD Vivado Design Suite 2026.1 and Vitis HLS |
 | Installer | `FPGAs_AdaptiveSoCs_Unified_SDI_2026.1_XXXX_XXXX_Lin64.bin` |
+| Vivado install location | host folders `~/xilinx/tools` and `~/xilinx/home` |
 | Board | AMD Zynq-7000 ZC702 |
 | Part | `xc7z020clg484-1` |
 
@@ -25,7 +26,7 @@ Vitis HLS (C/C++-to-RTL blocks) is part of the toolchain alongside the handwritt
 
 ## Quick start
 
-1. [Host setup](docs/01-host-setup.md): Docker Engine, disk space, installer directory
+1. [Host setup](docs/01-host-setup.md): Docker Engine, disk space, installer directory, Vivado folders
 2. [Licensing](docs/02-licensing.md): generate the free Basic and Vitis HLS node-locked licenses
 3. [Docker environment](docs/03-docker-environment.md): build the image, start the container
 4. [Install and verify Vivado and Vitis HLS](docs/04-install-vivado.md): installer, license, version and device check
@@ -35,7 +36,7 @@ Vitis HLS (C/C++-to-RTL blocks) is part of the toolchain alongside the handwritt
 
 ## Persistence
 
-The container is discarded on exit. Only `/work`, `/tools/Xilinx`, `/home/vivado`, and `/installer` survive, so add any extra packages to `docker/Dockerfile`. See [Docker environment](docs/03-docker-environment.md) for details and the host-folder variables.
+The container is discarded on exit. Only `/work`, `/tools/Xilinx`, `/home/vivado`, and `/installer` survive, so add any extra packages to `docker/Dockerfile`. The Vivado install and the container user's home are stored in plain host folders (`~/xilinx/tools` and `~/xilinx/home`), so they survive container deletion, image rebuilds, and Docker cleanups. See [Docker environment](docs/03-docker-environment.md) for details, the variables that change these paths, and backups.
 
 ## Repository layout
 
@@ -43,6 +44,7 @@ The container is discarded on exit. Only `/work`, `/tools/Xilinx`, `/home/vivado
 soc_lab/
 ├── docker/
 │   ├── Dockerfile
+│   ├── xilinx-libs.txt
 │   ├── run.sh
 │   └── vivado-env.sh
 ├── docs/
@@ -52,13 +54,14 @@ soc_lab/
 ├── constraints/
 ├── sim/
 ├── scripts/
+├── build/            (local, ignored by Git)
 ├── .gitignore
 └── README.md
 ```
 
 ## Git hygiene
 
-Commit Docker config, VHDL sources, constraints, and Tcl scripts. Never commit installers, licenses (`*.lic`), or generated binaries (`*.bit`, `*.bin`, `*.xsa`). See `.gitignore`. Keep the installer and license in `~/installer`, outside this repository.
+Commit Docker config, VHDL sources, constraints, and Tcl scripts. Never commit installers, licenses (`*.lic`), or generated binaries (`*.bit`, `*.bin`, `*.xsa`). See `.gitignore`, which also covers Vivado's generated project folders, logs, and journals. Keep the installer and license in `~/installer`, and the Vivado install in `~/xilinx`, both outside this repository. Run Vivado from `/work/build` (ignored by Git) so its logs and journals stay out of the repository root.
 
 ```bash
 git status

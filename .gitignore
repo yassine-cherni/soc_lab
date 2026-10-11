@@ -19,8 +19,28 @@ hs_err_pid*
 .metadata/
 ws/
 
+# Simulation and WebTalk outputs
+xsim.dir/
+*.wdb
+webtalk*
+usage_statistics_webtalk.*
+
+# Local build directory (run Vivado from /work/build)
+build/
+
+# HLS and debug probe files
+hls_data.json
+*.ltx
+
 # Never commit licenses, installers, or generated binaries
 *.lic
 *.bit
 *.bin
 *.xsa
+*.mcs
+*.prm
+
+# Editor and OS
+.vscode/
+*.swp
+.DS_Store

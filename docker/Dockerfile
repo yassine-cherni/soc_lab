@@ -50,6 +50,16 @@ RUN set -eux; \
 # which Ubuntu 24.04 no longer ships. Point it at the real one.
 RUN ln -s /lib64/ld-linux-x86-64.so.2 /lib64/ld-lsb-x86-64.so.3
 
+# Extra packages that AMD's installLibs.sh installs for 2026.1 (mostly -dev
+# packages, python3, graphviz). The list was captured from a real run into
+# docker/xilinx-libs.txt, one package per line. Kept in its own layer so
+# changing the list does not rebuild the layers above.
+COPY xilinx-libs.txt /tmp/xilinx-libs.txt
+RUN apt-get update \
+    && grep -vE '^[[:space:]]*(#|$)' /tmp/xilinx-libs.txt \
+       | xargs apt-get install -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* /tmp/xilinx-libs.txt
+
 # Remove the stock UID 1000 user, then create ours with the host UID.
 RUN (userdel -r ubuntu 2>/dev/null || true) \
     && useradd -m --uid "${UID}" --shell /bin/bash \
