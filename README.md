@@ -1,8 +1,14 @@
 # soc_lab
 
-Programmable robot controller (FSM, datapath, motor controller) written in VHDL for the AMD Zynq-7000 ZC702 board. Vivado handles RTL synthesis, implementation, timing analysis, and bitstream generation.
+Docker-based Vivado 2026.1 and Vitis HLS environment for the AMD Zynq-7000 ZC702 (`xc7z020clg484-1`), with worked FPGA examples. Vivado handles RTL synthesis, implementation, timing analysis, and bitstream generation. Vitis HLS (C/C++-to-RTL blocks) sits alongside the handwritten VHDL flow. Vitis embedded software development (apps on the Zynq PS) is not set up here.
 
-Vitis HLS (C/C++-to-RTL blocks) is part of the toolchain alongside the handwritten VHDL flow. Vitis embedded software development (apps on the Zynq PS) is not set up here.
+## Examples
+
+| # | Example | Description |
+|---|---|---|
+| 1 | [Robot brain](docs/examples/01-robot-brain.md) | Programmable robot controller in VHDL: FSM, datapath (PC, IR, ROM, 4 counters), and motor controller. Adapted from a university lab that targeted ISE 12.3 and a Spartan-3E, ported to Vivado and the ZC702. |
+
+Each example keeps its sources in `rtl/exNN_name/`, `sim/exNN_name/`, and `scripts/exNN_name/`.
 
 ## Environment
 
@@ -58,31 +64,21 @@ soc_lab/
 │   ├── run.sh
 │   └── vivado-env.sh
 ├── docs/
-│   └── images/
-│   (includes running.md)
-├── rtl/
+│   ├── images/
+│   ├── examples/
+│   └── running.md
+├── rtl/              ex01_robot_brain/, ...
 ├── hls/
 ├── constraints/
-├── sim/
-├── scripts/
-├── build/            (local, ignored by Git)
+├── sim/              ex01_robot_brain/, ...
+├── scripts/          ex01_robot_brain/, ...
+├── build/            (created locally, not tracked)
 │   ├── vivado/       Vivado projects
 │   └── hls/          HLS outputs
 ├── .gitignore
+├── LICENSE
 └── README.md
 ```
-
-## Git hygiene
-
-Commit Docker config, VHDL sources, constraints, and Tcl scripts. Never commit installers, licenses (`*.lic`), or generated binaries (`*.bit`, `*.bin`, `*.xsa`). See `.gitignore`, which also covers Vivado's generated project folders, logs, and journals. Keep the installer and license in `~/installer`, and the Vivado install in `~/xilinx`, both outside this repository. Run Vivado from `/work/build` (ignored by Git) so its logs and journals stay out of the repository root.
-
-```bash
-git status
-git add docker/ docs/ rtl/ hls/ constraints/ sim/ scripts/ README.md .gitignore
-git commit -m "Add Vivado 2026.1 Docker environment"
-```
-
-Push after verifying the remote and branch.
 
 ## Official documentation
 
