@@ -122,7 +122,7 @@ cd /tmp/sdi
     --config "$HOME/.Xilinx/install_config.txt"
 ```
 
-Disk use and download time depend on the selected components, and Vitis adds noticeably more than Vivado alone. Check the disk-space figure the installer prints before the download starts. The expected environment script is `/tools/Xilinx/2026.1/Vivado/settings64.sh`. Because `/tools/Xilinx` is the host folder `~/xilinx/tools`, the install survives container deletion, image rebuilds, and Docker cleanups.
+Disk use and download time depend on the selected components, and Vitis adds noticeably more than Vivado alone. Check the disk-space figure the installer prints before the download starts. With only the Zynq-7000 family selected, the 2026.1 Vitis install was a 32.7 GB download and about 89 GB on disk afterwards (check with `du -sh ~/xilinx/tools` on the host). The expected environment script is `/tools/Xilinx/2026.1/Vivado/settings64.sh`. Because `/tools/Xilinx` is the host folder `~/xilinx/tools`, the install survives container deletion, image rebuilds, and Docker cleanups.
 
 ## 4.6 Copy the license into the persistent home
 
@@ -150,41 +150,64 @@ vlm
 
 Open **View Host Information** and check that an Ethernet MAC listed there is the one you licensed, then run **Perform Diagnostics** under License Diagnostics. `XILINXD_LICENSE_FILE` must show as passing. `LM_LICENSE_FILE` showing as failing is expected for a node-locked license.
 
+You can also confirm the match without the GUI. When Vivado starts in batch mode (see 4.8), it prints `A valid Vivado Design Suite BASIC license has been detected` followed by the expiry date. A node-locked license that does not match this machine is not accepted, so that line means the host ID matches.
+
 The Basic license expires after a year. To renew, generate a new license, overwrite `$HOME/.Xilinx/Xilinx.lic`, and repeat this check.
 
-## 4.7 Post-install libraries (if needed)
+## 4.7 Post-install libraries
 
-Confirm the real paths first, they can differ from AMD's documentation:
+When the install finishes, the installer asks you to run `installLibs.sh` from the Vitis scripts folder. In 2026.1 both `Vitis/scripts` and `Vivado/scripts` contain a copy, so list them first, since paths can differ between releases:
 
 ```bash
 find /tools/Xilinx -name installLibs.sh 2>/dev/null
 find /tools/Xilinx -name settings64.sh 2>/dev/null
 ```
 
-Then:
+Take a package snapshot, run the script, and record what it added:
 
 ```bash
+cd /tmp
+dpkg-query -W -f='${binary:Package}\n' | sort > /work/build/pkgs-before-post.txt
+
 sudo apt-get update
-dos2unix /tools/Xilinx/2026.1/Vivado/scripts/installLibs.sh
-sudo /tools/Xilinx/2026.1/Vivado/scripts/installLibs.sh
+dos2unix /tools/Xilinx/2026.1/Vitis/scripts/installLibs.sh
+sudo /tools/Xilinx/2026.1/Vitis/scripts/installLibs.sh
+
+dpkg-query -W -f='${binary:Package}\n' | sort > /work/build/pkgs-after-post.txt
+comm -13 /work/build/pkgs-before-post.txt /work/build/pkgs-after-post.txt > /work/build/pkgs-added-post.txt
+wc -l /work/build/pkgs-added-post.txt
 exec bash
 ```
 
-If the script fails, diagnose the missing library from AMD's documentation instead of creating compatibility symlinks.
+If you already ran the same script in 4.2, this run usually installs nothing new, so `pkgs-added-post.txt` is empty. The script writes a root-owned log (`installLibs.sh_<timestamp>`) into the directory you run it from, which is why the block starts with `cd /tmp`. If a log landed in your persistent home, remove it with `sudo rm -f ~/installLibs.sh_*`.
 
-**Make the libraries permanent.** Packages installed here live in the container filesystem and are lost on exit. Record the package list before running `installLibs.sh` (in 4.2 or 4.7), then compare afterwards. The image's own `/var/log/dpkg.log` already lists everything from the Docker build, so use a before and after snapshot instead:
+The script may print `Package 'libasound2' has no installation candidate`. On Ubuntu 24.04 that package is named `libasound2t64`, which the Dockerfile already installs, so this message is harmless. The script continues with the remaining packages.
+
+The `Vivado/scripts` copy may list different packages from the Vitis one. Compare them while ignoring line endings (after `dos2unix` on one copy, a plain `diff` reports every line as different even when the content is the same):
 
 ```bash
-# before running installLibs.sh
-dpkg-query -W -f='${binary:Package}\n' | sort > /work/build/pkgs-before.txt
-
-# run installLibs.sh, then:
-dpkg-query -W -f='${binary:Package}\n' | sort | comm -13 /work/build/pkgs-before.txt -
+diff <(tr -d '\r' < /tools/Xilinx/2026.1/Vitis/scripts/installLibs.sh) \
+     <(tr -d '\r' < /tools/Xilinx/2026.1/Vivado/scripts/installLibs.sh) && echo "identical"
 ```
 
-Write the names printed into `docker/xilinx-libs.txt` (one per line; the Dockerfile installs them) and rebuild the image. The Vivado install and your license are untouched by a rebuild. Do this as soon as the libraries are known, so a fresh container never needs the script again.
+If they are identical, running the Vitis copy is enough. If they differ, run the Vivado one the same way (`dos2unix`, then `sudo`).
 
-To confirm a rebuilt image has everything the script installed, run this in a fresh container; it should print nothing:
+If the script fails, diagnose the missing library from AMD's documentation instead of creating compatibility symlinks.
+
+**Make the libraries permanent.** Packages installed here live in the container filesystem and are lost on exit. If `pkgs-added-post.txt` is not empty, merge it into the Dockerfile's package list without duplicates:
+
+```bash
+cd /work
+{ head -n 1 docker/xilinx-libs.txt
+  grep -hv '^#' docker/xilinx-libs.txt build/pkgs-added-post.txt | sort -u; } > build/xilinx-libs.new
+mv build/xilinx-libs.new docker/xilinx-libs.txt
+cp build/pkgs-after-post.txt build/pkgs-after-script.txt
+wc -l docker/xilinx-libs.txt
+```
+
+Commit `docker/xilinx-libs.txt` and rebuild the image. The Vivado install and your license are untouched by a rebuild. Do this as soon as the libraries are known, so a fresh container never needs the script again.
+
+To confirm a rebuilt image has everything the scripts installed, run this in a fresh container; it should print nothing:
 
 ```bash
 comm -13 <(dpkg-query -W -f='${binary:Package}\n' | sort) /work/build/pkgs-after-script.txt
@@ -219,7 +242,7 @@ TCL
 vivado -mode batch -source /tmp/check_device.tcl
 ```
 
-This verifies the device database only. No physical board is required. If the part is missing, rerun the installer and add the Zynq-7000 family.
+Expect `Target device available: xc7z020clg484-1`, and near the top the line `A valid Vivado Design Suite BASIC license has been detected` with your expiry date. This verifies the device database only. No physical board is required. If the part is missing, rerun the installer and add the Zynq-7000 family.
 
 ## 4.9 Verify Vitis HLS
 
@@ -229,7 +252,7 @@ The HLS command-line entry points have changed between releases (`vitis_hls`, `v
 find /tools/Xilinx/2026.1 -type f \( -name vitis-run -o -name v++ -o -name vitis_hls \) 2>/dev/null
 ```
 
-Run `--version` on the one you find. If it is not on your `PATH` in a new shell, locate the right settings file with `find /tools/Xilinx/2026.1 -maxdepth 2 -name settings64.sh`. `vivado-env.sh` already sources the Vivado, Vitis, and Vitis_HLS ones if they exist at those paths; adjust the list in that file if yours differ.
+In 2026.1 the entry points `vitis-run` and `v++` are in `Vitis/bin` and are on `PATH` once `vivado-env.sh` is sourced. `vitis_hls` exists only under `bin/unwrapped/lnx64.o`, so use `vitis-run` or `v++` instead. Run `vitis-run --version`; it should report v2026.1. If it is not on your `PATH` in a new shell, locate the right settings file with `find /tools/Xilinx/2026.1 -maxdepth 2 -name settings64.sh`. `vivado-env.sh` already sources the Vivado, Vitis, and Vitis_HLS ones if they exist at those paths; adjust the list in that file if yours differ.
 
 To confirm the HLS license is in the file you installed:
 
@@ -237,27 +260,30 @@ To confirm the HLS license is in the file you installed:
 grep -E '^(FEATURE|INCREMENT)' "$XILINXD_LICENSE_FILE" | awk '{print $2}'
 ```
 
-The list should include a Vitis HLS feature as well as the Vivado Basic one. The exact feature names are AMD's, so compare against what the portal showed you.
+For 2026.1 the list should show `Vivado_Basic_Package`, `Vivado_Simulation`, `Vivado_Synthesis`, `Vivado_Implementation`, and `Vitis_HLS`. The names are AMD's and may change in other releases, so compare against what the portal showed you.
 
 ## 4.10 Prove the install is permanent
 
 Do this once everything above passes. It simulates what you wanted to be safe: a replaced container, then a replaced image.
 
 1. Exit the container, then start a new one with `./docker/run.sh`. Run `vivado -version` and `vitis-run --version` (or whichever HLS command 4.9 found). Both should work with no reinstall.
-2. On the host, delete and rebuild the image:
+2. On the host, rebuild the image. Keep the old one under a second tag first, so a failed build (for example a 404 on the pinned `libtinfo5`) cannot leave you without an image:
 
    ```bash
-   docker image rm vivado-base:24.04
+   docker tag vivado-base:24.04 vivado-base:backup
    docker build --build-arg UID="$(id -u)" -t vivado-base:24.04 docker/
    ./docker/run.sh
    ```
 
-   Run `vivado -version` again. If it fails on a missing library, the packages from 4.7 are not yet in the Dockerfile.
+   Inside the new container, run `vivado -version`, `vitis-run --version`, and the package check from 4.7, which should print nothing. If something fails on a missing library, the packages from 4.7 are not yet in `docker/xilinx-libs.txt`. When everything passes, remove the fallback with `docker rmi vivado-base:backup`.
 3. On the host, confirm the install and license are real files you can see and back up:
 
    ```bash
    du -sh ~/xilinx/tools ~/xilinx/home
    ls -l ~/xilinx/home/.Xilinx/Xilinx.lic
+   find ~/xilinx -not -user "$USER" | head
    ```
+
+   Expect about 89 GB for `tools`, tens of MB for `home`, a license file owned by you with mode `-rw-------`, and no output from `find`. Anything `find` lists is owned by root, usually a log written by a `sudo` script; remove it with `sudo rm` inside the container.
 
 Previous: [Docker environment](03-docker-environment.md) | Next: [ZC702 hardware access](05-zc702-hardware.md)

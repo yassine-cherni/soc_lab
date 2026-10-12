@@ -42,7 +42,7 @@ docker run --rm hello-world
 
 ## 1.2 Check storage and user ID
 
-Reserve approximately **150 GB of free space** for Docker, Vivado, and build outputs. This is a conservative target, not a strict minimum.
+Reserve approximately **150 GB of free space** for Docker, Vivado, and build outputs. This is a conservative target, not a strict minimum. A measured 2026.1 Vitis install with only the Zynq-7000 family selected was a 32.7 GB download and about 89 GB on disk, and the Docker image is under 2 GB.
 
 ```bash
 id -u

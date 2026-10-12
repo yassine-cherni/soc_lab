@@ -8,8 +8,11 @@ The pinned package version is no longer available. Update the three `ARG` lines 
 **`docker build` fails with `dial tcp ... i/o timeout`**
 Docker Hub or the Ubuntu mirrors were unreachable. Check the connection and rebuild.
 
+**`docker build` warns `FromPlatformFlagConstDisallowed`**
+Harmless. The Dockerfile fixes the platform to `linux/amd64` on purpose, because Vivado only runs on x86-64. Ignore the warning.
+
 **Dockerfile changes do not appear**
-Rebuild the image. Installed software and the home directory live in persistent volumes, so a rebuild does not remove them.
+Rebuild the image. Installed software and the home directory live in persistent host folders (`~/xilinx`), so a rebuild does not remove them.
 
 **Permission denied on `/work`**
 Rebuild the image with the host UID:
@@ -34,6 +37,9 @@ Build `vivado-base:24.04` first ([build step](03-docker-environment.md#build-the
 
 **"Cannot write to /tools/Xilinx" or a permission error at install**
 `/tools/Xilinx` is a host folder (by default `~/xilinx/tools`). Make sure it is owned by your UID: `sudo chown -R "$(id -u):$(id -g)" ~/xilinx`. If you set `XILINX_TOOLS_MOUNT` yourself, fix that directory instead.
+
+**Files in `~/xilinx` are owned by root**
+A script run with `sudo` inside the container (for example `installLibs.sh`) writes root-owned files into the directory it was started from. Find them on the host with `find ~/xilinx -not -user "$USER"`. Remove them inside the container with `sudo rm`, or take ownership on the host with `sudo chown -R "$(id -u):$(id -g)" ~/xilinx`. Run such scripts from `/tmp` to avoid this.
 
 **`chmod: Read-only file system`**
 Run `chmod +x` on the installer on the host, not inside the container.

@@ -77,7 +77,7 @@ The container runs with `--rm`, so its own filesystem is discarded on exit. Only
 | `/home/vivado` | `~/xilinx/home` (host folder) | license copy, `~/.Xilinx` settings and install config |
 | `/installer` | `~/installer` (bind mount) | installer and license source files |
 
-Everything else is lost, including files in `/tmp` and packages installed at runtime with `sudo apt-get`. Save work under `/work`, and put any extra library the tools need into the Dockerfile and rebuild (see [section 4.7](04-install-vivado.md#47-post-install-libraries-if-needed)).
+Everything else is lost, including files in `/tmp` and packages installed at runtime with `sudo apt-get`. Save work under `/work`, and put any extra library the tools need into the Dockerfile and rebuild (see [section 4.7](04-install-vivado.md#47-post-install-libraries)).
 
 The Vivado install and home are plain host folders on purpose. They survive deleting or replacing the container, rebuilding or deleting the image, `docker volume prune`, `docker system prune`, and reinstalling Docker. Only deleting the folders themselves removes them.
 
@@ -113,7 +113,7 @@ A host directory mounted at `/home/vivado` starts empty, so it does not carry th
 
   Put the new version and hashes into the three `ARG` lines at the top of the Dockerfile.
 * A symlink from `/lib64/ld-lsb-x86-64.so.3` to the real loader is created because `lmutil`, `lmgrd`, and the Vivado License Manager (`vlm`) expect the LSB loader, which Ubuntu 24.04 no longer ships. `lsb-base` and `lsb-release` are installed for the same reason.
-* Vitis is installed by the AMD installer into `/tools/Xilinx`, not by the Dockerfile. Python is not installed in the image; add it only if a tool asks for it.
+* Vitis is installed by the AMD installer into `/tools/Xilinx`, not by the Dockerfile. Python 3 is installed as a dependency of the packages in `xilinx-libs.txt`, so no separate Python setup is needed.
 * Rebuild the image with the same `--build-arg UID="$(id -u)"` every time. The Vivado files in `~/xilinx` are owned by that UID, and a different UID in the image would leave them unwritable.
 
 ## Runtime notes for `run.sh`
