@@ -32,7 +32,17 @@ Vitis HLS (C/C++-to-RTL blocks) is part of the toolchain alongside the handwritt
 4. [Install and verify Vivado and Vitis HLS](docs/04-install-vivado.md): installer, license, version and device check
 5. [ZC702 hardware access](docs/05-zc702-hardware.md): optional, JTAG and UART
 6. [VHDL lab notes](docs/06-vhdl-lab-notes.md): ISE to Vivado migration points
-7. [Troubleshooting](docs/troubleshooting.md)
+7. [Running Vivado and Vitis HLS](docs/running.md): daily commands, project settings, HLS flow
+8. [Troubleshooting](docs/troubleshooting.md)
+
+## Run it
+
+```bash
+./docker/run.sh            # host: start container
+cd /work/build && vivado & # container: Vivado GUI
+```
+
+See [Running Vivado and Vitis HLS](docs/running.md).
 
 ## Persistence
 
@@ -49,12 +59,15 @@ soc_lab/
 │   └── vivado-env.sh
 ├── docs/
 │   └── images/
+│   (includes running.md)
 ├── rtl/
 ├── hls/
 ├── constraints/
 ├── sim/
 ├── scripts/
 ├── build/            (local, ignored by Git)
+│   ├── vivado/       Vivado projects
+│   └── hls/          HLS outputs
 ├── .gitignore
 └── README.md
 ```

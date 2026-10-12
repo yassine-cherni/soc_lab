@@ -226,6 +226,7 @@ It should report **Vivado v2026.1**. If it will not launch, check the license pa
 Check the target device:
 
 ```bash
+mkdir -p /work/build && cd /work/build
 cat > /tmp/check_device.tcl <<'TCL'
 set part "xc7z020clg484-1"
 set found [get_parts $part]
